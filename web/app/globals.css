@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+html,
+body {
+  height: 100%;
+}
+
+/* Leaflet tooltips on the dark theme */
+.leaflet-tooltip {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #e2e8f0;
+  box-shadow: none;
+}
+.leaflet-tooltip-left::before {
+  border-left-color: #1e293b;
+}
+.leaflet-tooltip-right::before {
+  border-right-color: #1e293b;
+}
+.leaflet-container {
+  font-family: inherit;
+}
