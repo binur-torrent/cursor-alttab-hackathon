@@ -7,10 +7,14 @@ privacy & ethics requirements.
 
 ## 1. Purpose limitation — what we detect
 
-LumiCity detects **urban assets only**:
+LumiCity detects **urban assets and scene composition only**:
 
 - ✅ Streetlights / luminaires, utility & lighting poles
-- ✅ Road segment geometry, road type, illumination density
+- ✅ Road segment geometry, road type, road width, illumination density
+- ✅ Environmental occlusion features as **aggregate scene ratios** — tree/canopy
+  count, vegetation %, building-facade %, sidewalk %, open-sky % — used purely to
+  estimate how much light reaches the street. These are scene-composition
+  statistics, never attributes of any individual.
 
 It explicitly does **not** perform, and contains no code for:
 

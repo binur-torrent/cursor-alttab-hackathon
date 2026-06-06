@@ -32,7 +32,11 @@ export default function StatsBar({ stats }: { stats: CityStats | null }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Kpi label="Segments" value={num(stats.total_segments)} sub={`${num(stats.total_length_km, 1)} km mapped`} />
         <Kpi label="Streetlights" value={num(stats.total_street_lights)} sub={`${num(stats.total_poles)} poles`} />
-        <Kpi label="Avg risk" value={num(stats.avg_risk_score, 1)} sub="0 = safe · 100 = critical" />
+        <Kpi
+          label="Avg lighting score"
+          value={num(100 - stats.avg_risk_score, 0)}
+          sub="0 = dark · 100 = well lit"
+        />
         <Kpi
           label="High-risk"
           value={num(stats.high_risk_segments)}

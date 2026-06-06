@@ -78,7 +78,7 @@ export default function Dashboard() {
             LumiCity AI
           </h1>
           <p className="text-sm text-slate-400">
-            Istanbul streetlight intelligence · adaptive-lighting decision support
+            Urban lighting assessment · click a street to score it, then plan upgrades
           </p>
         </div>
         <select
