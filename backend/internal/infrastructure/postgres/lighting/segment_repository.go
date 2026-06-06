@@ -29,7 +29,10 @@ func NewSegmentRepo(db *pgxpool.Pool) *SegmentRepo {
 
 const segmentColumns = `id, external_id, name, district, road_type, centroid_lat, centroid_lon,
 	geometry, length_m, sample_count, street_light_count, pole_count, night_sample_ratio,
-	lighting_density, recommended_density, adequacy, risk_score, risk_level, created_at, updated_at`
+	tree_count, vegetation_ratio, building_ratio, road_width_m, sidewalk_ratio, sky_ratio, brightness_factor,
+	lighting_density, recommended_density, adequacy,
+	lighting_sufficiency, occlusion, infrastructure_adequacy, overall_score,
+	risk_score, risk_level, created_at, updated_at`
 
 func (r *SegmentRepo) Upsert(ctx context.Context, seg *model.StreetSegment) error {
 	if seg.ID == uuid.Nil {
@@ -48,18 +51,29 @@ func (r *SegmentRepo) Upsert(ctx context.Context, seg *model.StreetSegment) erro
 
 	_, err = r.db.Exec(ctx,
 		`INSERT INTO street_segments (`+segmentColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+		         $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
 		 ON CONFLICT (external_id) DO UPDATE SET
 		   name=EXCLUDED.name, district=EXCLUDED.district, road_type=EXCLUDED.road_type,
 		   centroid_lat=EXCLUDED.centroid_lat, centroid_lon=EXCLUDED.centroid_lon,
 		   geometry=EXCLUDED.geometry, length_m=EXCLUDED.length_m, sample_count=EXCLUDED.sample_count,
 		   street_light_count=EXCLUDED.street_light_count, pole_count=EXCLUDED.pole_count,
-		   night_sample_ratio=EXCLUDED.night_sample_ratio, lighting_density=EXCLUDED.lighting_density,
+		   night_sample_ratio=EXCLUDED.night_sample_ratio,
+		   tree_count=EXCLUDED.tree_count, vegetation_ratio=EXCLUDED.vegetation_ratio,
+		   building_ratio=EXCLUDED.building_ratio, road_width_m=EXCLUDED.road_width_m,
+		   sidewalk_ratio=EXCLUDED.sidewalk_ratio, sky_ratio=EXCLUDED.sky_ratio,
+		   brightness_factor=EXCLUDED.brightness_factor,
+		   lighting_density=EXCLUDED.lighting_density,
 		   recommended_density=EXCLUDED.recommended_density, adequacy=EXCLUDED.adequacy,
+		   lighting_sufficiency=EXCLUDED.lighting_sufficiency, occlusion=EXCLUDED.occlusion,
+		   infrastructure_adequacy=EXCLUDED.infrastructure_adequacy, overall_score=EXCLUDED.overall_score,
 		   risk_score=EXCLUDED.risk_score, risk_level=EXCLUDED.risk_level, updated_at=EXCLUDED.updated_at`,
 		seg.ID, seg.ExternalID, seg.Name, seg.District, seg.RoadType, seg.CentroidLat, seg.CentroidLon,
 		geometryJSON, seg.LengthM, seg.SampleCount, seg.StreetLightCount, seg.PoleCount, seg.NightSampleRatio,
-		seg.LightingDensity, seg.RecommendedDensity, seg.Adequacy, seg.RiskScore, seg.RiskLevel,
+		seg.TreeCount, seg.VegetationRatio, seg.BuildingRatio, seg.RoadWidthM, seg.SidewalkRatio, seg.SkyRatio, seg.BrightnessFactor,
+		seg.LightingDensity, seg.RecommendedDensity, seg.Adequacy,
+		seg.LightingSufficiency, seg.Occlusion, seg.InfrastructureAdequacy, seg.OverallScore,
+		seg.RiskScore, seg.RiskLevel,
 		seg.CreatedAt, seg.UpdatedAt,
 	)
 	if err != nil {
@@ -74,7 +88,10 @@ func scanSegment(row pgx.Row) (*model.StreetSegment, error) {
 	err := row.Scan(
 		&s.ID, &s.ExternalID, &s.Name, &s.District, &s.RoadType, &s.CentroidLat, &s.CentroidLon,
 		&geometryJSON, &s.LengthM, &s.SampleCount, &s.StreetLightCount, &s.PoleCount, &s.NightSampleRatio,
-		&s.LightingDensity, &s.RecommendedDensity, &s.Adequacy, &s.RiskScore, &s.RiskLevel,
+		&s.TreeCount, &s.VegetationRatio, &s.BuildingRatio, &s.RoadWidthM, &s.SidewalkRatio, &s.SkyRatio, &s.BrightnessFactor,
+		&s.LightingDensity, &s.RecommendedDensity, &s.Adequacy,
+		&s.LightingSufficiency, &s.Occlusion, &s.InfrastructureAdequacy, &s.OverallScore,
+		&s.RiskScore, &s.RiskLevel,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
