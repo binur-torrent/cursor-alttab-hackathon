@@ -48,6 +48,12 @@ class Detection:
 class DetectionResult:
     street_light_count: int = 0
     pole_count: int = 0
+    tree_count: int = 0
+    # Scene-composition ratios (0..1) — aggregate, never per-person attributes.
+    vegetation_ratio: float = 0.0
+    building_ratio: float = 0.0
+    sidewalk_ratio: float = 0.0
+    sky_ratio: float = 0.0
     detections: List[Detection] = field(default_factory=list)
     backend: str = "heuristic"
 
@@ -55,6 +61,11 @@ class DetectionResult:
         return {
             "street_light_count": self.street_light_count,
             "pole_count": self.pole_count,
+            "tree_count": self.tree_count,
+            "vegetation_ratio": round(self.vegetation_ratio, 3),
+            "building_ratio": round(self.building_ratio, 3),
+            "sidewalk_ratio": round(self.sidewalk_ratio, 3),
+            "sky_ratio": round(self.sky_ratio, 3),
             "backend": self.backend,
             "detections": [
                 {"label": d.label, "score": round(d.score, 3), "bbox": d.bbox}
@@ -119,8 +130,25 @@ class StreetlightDetector:
         )[0]
 
         result = DetectionResult(backend="mask2former")
+        segmentation = processed.get("segmentation")
+        id2label = getattr(self._model.config, "id2label", {}) or {}
+
+        # Per-segment id -> pixel area, for scene-composition ratios.
+        seg_areas: Dict[int, int] = {}
+        total_px = 0
+        if segmentation is not None:
+            flat = segmentation.flatten()
+            total_px = int(flat.numel())
+            uniq, counts = torch.unique(flat, return_counts=True)
+            seg_areas = {int(u): int(c) for u, c in zip(uniq.tolist(), counts.tolist())}
+
+        veg_px = build_px = side_px = sky_px = 0
         for segment in processed.get("segments_info", []):
             label_id = segment.get("label_id")
+            seg_id = int(segment.get("id", -1))
+            area = seg_areas.get(seg_id, 0)
+            name = str(id2label.get(label_id, "")).lower()
+
             if label_id in URBAN_ASSET_LABELS:
                 label = URBAN_ASSET_LABELS[label_id]
                 score = float(segment.get("score", 1.0))
@@ -129,6 +157,23 @@ class StreetlightDetector:
                     result.street_light_count += 1
                 else:
                     result.pole_count += 1
+
+            # Scene composition by class name (robust to label-id shifts).
+            if "vegetation" in name or "tree" in name:
+                veg_px += area
+            elif "building" in name:
+                build_px += area
+            elif "sidewalk" in name or "curb" in name:
+                side_px += area
+            elif "sky" in name:
+                sky_px += area
+
+        if total_px > 0:
+            result.vegetation_ratio = veg_px / total_px
+            result.building_ratio = build_px / total_px
+            result.sidewalk_ratio = side_px / total_px
+            result.sky_ratio = sky_px / total_px
+        result.tree_count = int(round(result.vegetation_ratio * 12))
         return result
 
     # --- Deterministic heuristic fallback (no model weights needed) ---
@@ -141,7 +186,19 @@ class StreetlightDetector:
         poles = (h // 7) % 5
         result = DetectionResult(backend="heuristic")
         result.street_light_count = street_lights
-        result.pole_count = poles
+        result.pole_count = poles + street_lights
+
+        # Deterministic, plausible scene composition derived from the same seed.
+        veg = ((h // 11) % 65) / 100.0  # 0 .. 0.64
+        building = 0.15 + ((h // 13) % 55) / 100.0  # 0.15 .. 0.69
+        sidewalk = ((h // 17) % 85) / 100.0
+        sky = max(0.08, min(0.95, 1.0 - veg * 0.6 - building * 0.4))
+        result.vegetation_ratio = veg
+        result.building_ratio = building
+        result.sidewalk_ratio = sidewalk
+        result.sky_ratio = sky
+        result.tree_count = int(round(veg * 12))
+
         for i in range(street_lights):
             result.detections.append(Detection(label="street_light", score=0.6 + (i % 3) * 0.1))
         for i in range(poles):

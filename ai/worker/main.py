@@ -60,6 +60,12 @@ class CoordRequest(BaseModel):
 class AnalyzeResponse(BaseModel):
     street_light_count: int
     pole_count: int
+    tree_count: int = 0
+    vegetation_ratio: float = 0.0
+    building_ratio: float = 0.0
+    sidewalk_ratio: float = 0.0
+    sky_ratio: float = 0.0
+    road_width_m: float = 0.0
     detector_backend: str
     faces_blurred: int
     plates_blurred: int
@@ -68,6 +74,10 @@ class AnalyzeResponse(BaseModel):
     risk_level: str
     adequacy: float
     lighting_density: float
+    lighting_sufficiency: float = 0.0
+    occlusion: float = 0.0
+    infrastructure_adequacy: float = 0.0
+    overall_score: float = 0.0
     image_base64: Optional[str] = None
 
 
@@ -104,6 +114,46 @@ def _fetch_streetview(lat: float, lon: float, heading: float) -> Optional[bytes]
         return None
 
 
+def _response_from_detection(det, anon, road_type: str, length_m: float, is_night: bool, image_b64: Optional[str]) -> AnalyzeResponse:
+    width = scoring.road_width(road_type)
+    breakdown = scoring.score_env(scoring.Features(
+        streetlights=det.street_light_count,
+        pole_count=det.pole_count,
+        length_m=length_m,
+        road_type=road_type,
+        night_ratio=1.0 if is_night else 0.0,
+        road_width_m=width,
+        tree_count=det.tree_count,
+        vegetation_ratio=det.vegetation_ratio,
+        building_ratio=det.building_ratio,
+        sidewalk_ratio=det.sidewalk_ratio,
+        sky_ratio=det.sky_ratio,
+    ))
+    return AnalyzeResponse(
+        street_light_count=det.street_light_count,
+        pole_count=det.pole_count,
+        tree_count=det.tree_count,
+        vegetation_ratio=round(det.vegetation_ratio, 3),
+        building_ratio=round(det.building_ratio, 3),
+        sidewalk_ratio=round(det.sidewalk_ratio, 3),
+        sky_ratio=round(det.sky_ratio, 3),
+        road_width_m=round(width, 1),
+        detector_backend=det.backend,
+        faces_blurred=anon.faces_blurred if anon else 0,
+        plates_blurred=anon.plates_blurred if anon else 0,
+        anonymized=(anon.method not in ("none", "unavailable", "read-error")) if anon else True,
+        risk_score=breakdown.risk_score,
+        risk_level=breakdown.risk_level,
+        adequacy=breakdown.adequacy,
+        lighting_density=breakdown.density,
+        lighting_sufficiency=breakdown.lighting_sufficiency,
+        occlusion=breakdown.occlusion,
+        infrastructure_adequacy=breakdown.infrastructure_adequacy,
+        overall_score=breakdown.overall_score,
+        image_base64=image_b64,
+    )
+
+
 def _analyze_bytes(data: bytes, road_type: str, length_m: float, is_night: bool) -> AnalyzeResponse:
     anon_bytes, anon = anonymize_bytes(data)
 
@@ -117,26 +167,8 @@ def _analyze_bytes(data: bytes, road_type: str, length_m: float, is_night: bool)
     except Exception:
         det = detector._heuristic_from_seed(str(len(data)))  # type: ignore
 
-    breakdown = scoring.score_segment(
-        streetlights=det.street_light_count,
-        length_m=length_m,
-        road_type=road_type,
-        night_sample_ratio=1.0 if is_night else 0.0,
-    )
-
-    return AnalyzeResponse(
-        street_light_count=det.street_light_count,
-        pole_count=det.pole_count,
-        detector_backend=det.backend,
-        faces_blurred=anon.faces_blurred,
-        plates_blurred=anon.plates_blurred,
-        anonymized=anon.method not in ("none", "unavailable", "read-error"),
-        risk_score=breakdown.risk_score,
-        risk_level=breakdown.risk_level,
-        adequacy=breakdown.adequacy,
-        lighting_density=breakdown.density,
-        image_base64=base64.b64encode(anon_bytes).decode() if anon_bytes else None,
-    )
+    image_b64 = base64.b64encode(anon_bytes).decode() if anon_bytes else None
+    return _response_from_detection(det, anon, road_type, length_m, is_night, image_b64)
 
 
 @app.post("/analyze/image", response_model=AnalyzeResponse)
@@ -157,23 +189,7 @@ def analyze_point(req: CoordRequest) -> AnalyzeResponse:
         # No Street View key configured: return a deterministic heuristic result
         # so the live demo still works end-to-end.
         det = get_detector()._heuristic_from_seed(f"{req.lat},{req.lon}")  # type: ignore
-        breakdown = scoring.score_segment(
-            streetlights=det.street_light_count,
-            length_m=req.length_m,
-            road_type=req.road_type,
-            night_sample_ratio=1.0 if req.is_night else 0.0,
-        )
-        return AnalyzeResponse(
-            street_light_count=det.street_light_count,
-            pole_count=det.pole_count,
-            detector_backend=det.backend + "+no-streetview",
-            faces_blurred=0,
-            plates_blurred=0,
-            anonymized=True,
-            risk_score=breakdown.risk_score,
-            risk_level=breakdown.risk_level,
-            adequacy=breakdown.adequacy,
-            lighting_density=breakdown.density,
-            image_base64=None,
-        )
+        resp = _response_from_detection(det, None, req.road_type, req.length_m, req.is_night, None)
+        resp.detector_backend = det.backend + "+no-streetview"
+        return resp
     return _analyze_bytes(data, req.road_type, req.length_m, req.is_night)

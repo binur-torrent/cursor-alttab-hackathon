@@ -305,6 +305,7 @@ func buildDependencies(
 		log.Info("ai worker configured", "url", workerURL)
 	}
 	analyzeLiveUC := lightingUC.NewAnalyzeLiveUseCase(analyzer, log)
+	analyzeSegUC := lightingUC.NewAnalyzeAndPersistUseCase(analyzeLiveUC, segmentRepo)
 
 	// Auto-seed from the embedded, anonymized AI pipeline output if empty.
 	if envBool("LIGHTING_AUTOSEED", true) {
@@ -319,7 +320,7 @@ func buildDependencies(
 		}
 	}
 
-	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC, analyzeLiveUC, rescoreUC)
+	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC, analyzeLiveUC, rescoreUC, analyzeSegUC)
 
 	// --- Gateway pipeline with interceptors ---
 	// Create interceptor chain: schema validation, PII masking, request/response transformers

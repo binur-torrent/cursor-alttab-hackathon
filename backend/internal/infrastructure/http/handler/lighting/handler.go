@@ -24,6 +24,7 @@ type Handler struct {
 	simulateUC     *usecase.SimulateScenarioUseCase
 	analyzeLiveUC  *usecase.AnalyzeLiveUseCase
 	rescoreUC      *usecase.RescoreSegmentUseCase
+	analyzeSegUC   *usecase.AnalyzeAndPersistUseCase
 }
 
 // NewHandler creates a new Lighting handler.
@@ -34,6 +35,7 @@ func NewHandler(
 	simulateUC *usecase.SimulateScenarioUseCase,
 	analyzeLiveUC *usecase.AnalyzeLiveUseCase,
 	rescoreUC *usecase.RescoreSegmentUseCase,
+	analyzeSegUC *usecase.AnalyzeAndPersistUseCase,
 ) *Handler {
 	return &Handler{
 		listSegmentsUC: listSegmentsUC,
@@ -42,6 +44,7 @@ func NewHandler(
 		simulateUC:     simulateUC,
 		analyzeLiveUC:  analyzeLiveUC,
 		rescoreUC:      rescoreUC,
+		analyzeSegUC:   analyzeSegUC,
 	}
 }
 
@@ -165,6 +168,24 @@ func (h *Handler) Rescore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.rescoreUC.Execute(r.Context(), idParam, req)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, result)
+}
+
+// AnalyzeSegment analyzes a clicked point (Street View via the AI worker, or a
+// deterministic fallback) and persists it as a street segment so it shows on
+// the map and is saved. Faces/plates are anonymized upstream.
+func (h *Handler) AnalyzeSegment(w http.ResponseWriter, r *http.Request) {
+	var req dto.AnalyzeRequest
+	if err := validator.DecodeAndValidate(r, &req); err != nil {
+		response.JSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	result, err := h.analyzeSegUC.Execute(r.Context(), req)
 	if err != nil {
 		response.Error(w, err)
 		return

@@ -1,5 +1,6 @@
 import type {
   AnalyzeResult,
+  AnalyzeSegmentResult,
   CityStats,
   MapResponse,
   Paginated,
@@ -60,4 +61,12 @@ export const api = {
     is_night?: boolean;
     address?: string;
   }) => postJSON<AnalyzeResult>("/api/v1/lighting/analyze", body),
+  analyzeSegment: (body: {
+    lat: number;
+    lon: number;
+    road_type?: string;
+    length_m?: number;
+    is_night?: boolean;
+    address?: string;
+  }) => postJSON<AnalyzeSegmentResult>("/api/v1/lighting/segments/analyze", body),
 };

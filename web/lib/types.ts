@@ -182,17 +182,34 @@ export interface RescoreResult {
 export interface AnalyzeResult {
   street_light_count: number;
   pole_count: number;
+  tree_count: number;
+  vegetation_ratio: number;
+  building_ratio: number;
+  sidewalk_ratio: number;
+  sky_ratio: number;
+  road_width_m: number;
   detector_backend: string;
   faces_blurred: number;
   plates_blurred: number;
   anonymized: boolean;
-  risk_score: number;
-  risk_level: RiskLevel;
   adequacy: number;
   lighting_density: number;
+  lighting_sufficiency: number;
+  occlusion: number;
+  infrastructure_adequacy: number;
+  overall_score: number;
+  risk_score: number;
+  risk_level: RiskLevel;
+  road_type?: string;
   image_base64?: string | null;
   lat?: number;
   lon?: number;
   address?: string;
   source?: string;
+}
+
+// Click-to-analyze + persist (POST /lighting/segments/analyze)
+export interface AnalyzeSegmentResult {
+  segment: StreetSegment;
+  analysis: AnalyzeResult;
 }

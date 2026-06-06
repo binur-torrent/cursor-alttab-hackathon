@@ -29,6 +29,8 @@ export default function Dashboard() {
   const [tab, setTab] = useState<Tab>("inspect");
   const [marker, setMarker] = useState<{ lat: number; lon: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [isNight, setIsNight] = useState(true);
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(String(e)));
@@ -51,6 +53,38 @@ export default function Dashboard() {
     } catch (e) {
       setError(String(e));
     } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  // Click anywhere on the map -> AI analyzes that street (Street View when a key
+  // is configured, heuristic otherwise), persists it, and shows it on the map.
+  async function handleMapClick(lat: number, lon: number) {
+    setMarker({ lat, lon });
+    setAnalyzing(true);
+    setError(null);
+    setTab("inspect");
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      const res = await api.analyzeSegment({
+        lat,
+        lon,
+        road_type: "secondary",
+        is_night: isNight,
+      });
+      const seg = res.segment;
+      setSegments((prev) => {
+        const rest = prev.filter((s) => s.external_id !== seg.external_id);
+        return [...rest, seg];
+      });
+      setSelected(seg);
+      setDetail({ segment: seg, fixtures: [], analyses: [] });
+      api.stats().then(setStats).catch(() => {});
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAnalyzing(false);
       setDetailLoading(false);
     }
   }
@@ -81,17 +115,30 @@ export default function Dashboard() {
             Urban lighting assessment · click a street to score it, then plan upgrades
           </p>
         </div>
-        <select
-          value={riskFilter}
-          onChange={(e) => setRiskFilter(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 outline-none focus:border-amber-400"
-        >
-          {RISK_FILTERS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsNight((v) => !v)}
+            title="Analysis time of day"
+            className={`rounded-full border px-3 py-2 text-xs transition ${
+              isNight
+                ? "border-sky-400 bg-sky-400/15 text-sky-300"
+                : "border-amber-400 bg-amber-400/15 text-amber-300"
+            }`}
+          >
+            {isNight ? "Night" : "Day"}
+          </button>
+          <select
+            value={riskFilter}
+            onChange={(e) => setRiskFilter(e.target.value)}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 outline-none focus:border-amber-400"
+          >
+            {RISK_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </header>
 
       {error && (
@@ -104,11 +151,25 @@ export default function Dashboard() {
 
       {/* Map + detail */}
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
-        <div className="h-[520px] overflow-hidden rounded-2xl border border-slate-800 lg:h-auto lg:min-h-[560px]">
+        <div className="relative h-[520px] overflow-hidden rounded-2xl border border-slate-800 lg:h-auto lg:min-h-[560px]">
+          <div
+            style={{ zIndex: 1000 }}
+            className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-slate-700 bg-slate-900/85 px-4 py-1.5 text-xs text-slate-300 shadow-lg backdrop-blur"
+          >
+            {analyzing ? (
+              <span className="flex items-center gap-2 text-amber-300">
+                <span className="h-2 w-2 animate-ping rounded-full bg-amber-400" />
+                Analyzing street with AI…
+              </span>
+            ) : (
+              <>Click any street to analyze it · existing segments are clickable too</>
+            )}
+          </div>
           <MapView
             segments={segments}
             selectedId={selected?.external_id}
             onSelect={handleSelect}
+            onMapClick={handleMapClick}
             marker={marker}
           />
         </div>

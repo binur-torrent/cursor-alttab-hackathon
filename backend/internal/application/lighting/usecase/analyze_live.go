@@ -44,6 +44,9 @@ func (uc *AnalyzeLiveUseCase) Execute(ctx context.Context, req dto.AnalyzeReques
 		if err == nil && result != nil {
 			result.Lat, result.Lon, result.Address = req.Lat, req.Lon, req.Address
 			result.Source = "ai-worker"
+			// The Go scoring model is the single source of truth: recompute the
+			// scores from the worker's detected features so live + seed agree.
+			uc.applyScores(result, req)
 			return result, nil
 		}
 		if uc.log != nil {
@@ -54,35 +57,70 @@ func (uc *AnalyzeLiveUseCase) Execute(ctx context.Context, req dto.AnalyzeReques
 	return uc.heuristic(req), nil
 }
 
+// applyScores fills the v2 scores on a result from its detected features.
+func (uc *AnalyzeLiveUseCase) applyScores(r *dto.AnalyzeResult, req dto.AnalyzeRequest) {
+	nightRatio := 0.0
+	if req.IsNight {
+		nightRatio = 1.0
+	}
+	width := r.RoadWidthM
+	if width <= 0 {
+		width = model.RoadWidthFor(req.RoadType)
+	}
+	bd := model.ScoreEnv(model.Features{
+		Streetlights:    r.StreetLightCount,
+		PoleCount:       r.PoleCount,
+		LengthM:         req.LengthM,
+		RoadType:        req.RoadType,
+		NightRatio:      nightRatio,
+		RoadWidthM:      width,
+		TreeCount:       r.TreeCount,
+		VegetationRatio: r.VegetationRatio,
+		BuildingRatio:   r.BuildingRatio,
+		SidewalkRatio:   r.SidewalkRatio,
+		SkyRatio:        r.SkyRatio,
+	})
+	r.RoadType = req.RoadType
+	r.RoadWidthM = width
+	r.Adequacy = bd.Adequacy
+	r.LightingDensity = bd.Density
+	r.LightingSufficiency = bd.LightingSufficiency
+	r.Occlusion = bd.Occlusion
+	r.InfrastructureAdequacy = bd.InfrastructureAdequacy
+	r.OverallScore = bd.OverallScore
+	r.RiskScore = bd.RiskScore
+	r.RiskLevel = bd.RiskLevel
+}
+
 // heuristic produces a deterministic, explainable estimate without the worker.
 // It mirrors the Python heuristic detector and reuses the shared scoring model.
 func (uc *AnalyzeLiveUseCase) heuristic(req dto.AnalyzeRequest) *dto.AnalyzeResult {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(fmt.Sprintf("%.5f,%.5f", req.Lat, req.Lon)))
 	seed := h.Sum32()
-	streetLights := int(seed % 4)      // 0..3 fixtures in frame
-	poles := int((seed / 7) % 5)       // 0..4 poles
+	streetLights := int(seed % 4) // 0..3 fixtures in frame
+	poles := int((seed/7)%5) + streetLights
+	veg := float64((seed/11)%65) / 100.0
+	building := 0.15 + float64((seed/13)%55)/100.0
+	sidewalk := float64((seed/17)%85) / 100.0
+	sky := 1.0 - veg*0.6 - building*0.4
 
-	nightRatio := 0.0
-	if req.IsNight {
-		nightRatio = 1.0
-	}
-	bd := model.ScoreSegment(streetLights, req.LengthM, req.RoadType, nightRatio)
-
-	return &dto.AnalyzeResult{
+	result := &dto.AnalyzeResult{
 		StreetLightCount: streetLights,
 		PoleCount:        poles,
+		TreeCount:        int(veg*12 + 0.5),
+		VegetationRatio:  veg,
+		BuildingRatio:    building,
+		SidewalkRatio:    sidewalk,
+		SkyRatio:         sky,
+		RoadWidthM:       model.RoadWidthFor(req.RoadType),
 		DetectorBackend:  "heuristic-fallback",
-		FacesBlurred:     0,
-		PlatesBlurred:    0,
 		Anonymized:       true,
-		RiskScore:        bd.RiskScore,
-		RiskLevel:        bd.RiskLevel,
-		Adequacy:         bd.Adequacy,
-		LightingDensity:  bd.Density,
 		Lat:              req.Lat,
 		Lon:              req.Lon,
 		Address:          req.Address,
 		Source:           "heuristic-fallback",
 	}
+	uc.applyScores(result, req)
+	return result
 }
