@@ -50,12 +50,25 @@ type seedSegment struct {
 	StreetLightCount   int          `json:"street_light_count"`
 	PoleCount          int          `json:"pole_count"`
 	NightSampleRatio   float64      `json:"night_sample_ratio"`
+	TreeCount          int          `json:"tree_count"`
+	VegetationRatio    float64      `json:"vegetation_ratio"`
+	BuildingRatio      float64      `json:"building_ratio"`
+	RoadWidthM         float64      `json:"road_width_m"`
+	SidewalkRatio      float64      `json:"sidewalk_ratio"`
+	SkyRatio           float64      `json:"sky_ratio"`
+	BrightnessFactor   float64      `json:"brightness_factor"`
 	LightingDensity    float64      `json:"lighting_density"`
 	RecommendedDensity float64      `json:"recommended_density"`
 	Adequacy           float64      `json:"adequacy"`
-	RiskScore          float64      `json:"risk_score"`
-	RiskLevel          string       `json:"risk_level"`
-	Samples            []seedSample `json:"samples"`
+
+	LightingSufficiency    float64 `json:"lighting_sufficiency"`
+	Occlusion              float64 `json:"occlusion"`
+	InfrastructureAdequacy float64 `json:"infrastructure_adequacy"`
+	OverallScore           float64 `json:"overall_score"`
+
+	RiskScore float64      `json:"risk_score"`
+	RiskLevel string       `json:"risk_level"`
+	Samples   []seedSample `json:"samples"`
 }
 
 type seedSample struct {
@@ -97,11 +110,31 @@ func (uc *IngestSeedUseCase) Execute(ctx context.Context, raw []byte) (*dto.Inge
 			StreetLightCount:   s.StreetLightCount,
 			PoleCount:          s.PoleCount,
 			NightSampleRatio:   s.NightSampleRatio,
+			TreeCount:          s.TreeCount,
+			VegetationRatio:    s.VegetationRatio,
+			BuildingRatio:      s.BuildingRatio,
+			RoadWidthM:         s.RoadWidthM,
+			SidewalkRatio:      s.SidewalkRatio,
+			SkyRatio:           s.SkyRatio,
+			BrightnessFactor:   s.BrightnessFactor,
 			LightingDensity:    s.LightingDensity,
 			RecommendedDensity: s.RecommendedDensity,
 			Adequacy:           s.Adequacy,
-			RiskScore:          s.RiskScore,
-			RiskLevel:          s.RiskLevel,
+
+			LightingSufficiency:    s.LightingSufficiency,
+			Occlusion:              s.Occlusion,
+			InfrastructureAdequacy: s.InfrastructureAdequacy,
+			OverallScore:           s.OverallScore,
+
+			RiskScore: s.RiskScore,
+			RiskLevel: s.RiskLevel,
+		}
+		// Backfill scores if the seed predates scoring v2 (older JSON files).
+		if seg.OverallScore == 0 && seg.RiskScore == 0 {
+			model.ApplyScores(seg, model.ScoreEnv(model.FeaturesOf(seg)))
+		}
+		if seg.BrightnessFactor == 0 {
+			seg.BrightnessFactor = 1
 		}
 		if err := uc.segments.Upsert(ctx, seg); err != nil {
 			return nil, err

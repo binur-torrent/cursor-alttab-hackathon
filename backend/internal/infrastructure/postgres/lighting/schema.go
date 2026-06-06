@@ -26,9 +26,20 @@ CREATE TABLE IF NOT EXISTS street_segments (
     street_light_count  INTEGER NOT NULL DEFAULT 0,
     pole_count          INTEGER NOT NULL DEFAULT 0,
     night_sample_ratio  DOUBLE PRECISION NOT NULL DEFAULT 0,
+    tree_count          INTEGER NOT NULL DEFAULT 0,
+    vegetation_ratio    DOUBLE PRECISION NOT NULL DEFAULT 0,
+    building_ratio      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    road_width_m        DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sidewalk_ratio      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sky_ratio           DOUBLE PRECISION NOT NULL DEFAULT 0,
+    brightness_factor   DOUBLE PRECISION NOT NULL DEFAULT 1,
     lighting_density    DOUBLE PRECISION NOT NULL DEFAULT 0,
     recommended_density DOUBLE PRECISION NOT NULL DEFAULT 0,
     adequacy            DOUBLE PRECISION NOT NULL DEFAULT 0,
+    lighting_sufficiency    DOUBLE PRECISION NOT NULL DEFAULT 0,
+    occlusion               DOUBLE PRECISION NOT NULL DEFAULT 0,
+    infrastructure_adequacy DOUBLE PRECISION NOT NULL DEFAULT 0,
+    overall_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
     risk_score          DOUBLE PRECISION NOT NULL DEFAULT 0,
     risk_level          VARCHAR(20) NOT NULL DEFAULT 'low',
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -37,6 +48,19 @@ CREATE TABLE IF NOT EXISTS street_segments (
 CREATE INDEX IF NOT EXISTS idx_street_segments_risk_level ON street_segments(risk_level);
 CREATE INDEX IF NOT EXISTS idx_street_segments_district ON street_segments(district);
 CREATE INDEX IF NOT EXISTS idx_street_segments_risk_score ON street_segments(risk_score DESC);
+
+-- Idempotent feature/score columns for databases created before scoring v2.
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS tree_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS vegetation_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS building_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS road_width_m DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS sidewalk_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS sky_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS brightness_factor DOUBLE PRECISION NOT NULL DEFAULT 1;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS lighting_sufficiency DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS occlusion DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS infrastructure_adequacy DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE street_segments ADD COLUMN IF NOT EXISTS overall_score DOUBLE PRECISION NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS light_fixtures (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

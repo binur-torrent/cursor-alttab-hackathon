@@ -16,9 +16,20 @@ export interface StreetSegment {
   street_light_count: number;
   pole_count: number;
   night_sample_ratio: number;
+  tree_count: number;
+  vegetation_ratio: number;
+  building_ratio: number;
+  road_width_m: number;
+  sidewalk_ratio: number;
+  sky_ratio: number;
+  brightness_factor: number;
   lighting_density: number;
   recommended_density: number;
   adequacy: number;
+  lighting_sufficiency: number;
+  occlusion: number;
+  infrastructure_adequacy: number;
+  overall_score: number;
   risk_score: number;
   risk_level: RiskLevel;
   created_at?: string;
@@ -120,21 +131,85 @@ export interface ScenarioResult {
   co2_delta_kg_year: number;
 }
 
+// Per-segment scoring breakdown (mirrors model.RiskBreakdown).
+export interface ScoreBreakdown {
+  lighting_density: number;
+  recommended_density: number;
+  adequacy: number;
+  lighting_sufficiency: number;
+  occlusion: number;
+  infrastructure_adequacy: number;
+  overall_score: number;
+  risk_score: number;
+  risk_level: RiskLevel;
+}
+
+export type RecommendationAction =
+  | "install_lamps"
+  | "increase_brightness"
+  | "trim_vegetation"
+  | "schedule_inspection";
+
+export interface Recommendation {
+  action: RecommendationAction;
+  title: string;
+  detail: string;
+  priority: "high" | "medium" | "low";
+  projected_overall_score: number;
+  projected_delta: number;
+  params?: Record<string, number>;
+}
+
+// What-if intervention (POST /lighting/segments/{id}/rescore)
+export interface RescoreRequest {
+  added_lamps?: number;
+  trim_vegetation?: boolean;
+  brightness_factor?: number;
+  persist?: boolean;
+}
+
+export interface RescoreResult {
+  segment_id: string;
+  external_id: string;
+  baseline: ScoreBreakdown;
+  projected: ScoreBreakdown;
+  recommendations: Recommendation[];
+  applied: boolean;
+  segment: StreetSegment;
+}
+
 // Live analysis (POST /lighting/analyze)
 export interface AnalyzeResult {
   street_light_count: number;
   pole_count: number;
+  tree_count: number;
+  vegetation_ratio: number;
+  building_ratio: number;
+  sidewalk_ratio: number;
+  sky_ratio: number;
+  road_width_m: number;
   detector_backend: string;
   faces_blurred: number;
   plates_blurred: number;
   anonymized: boolean;
-  risk_score: number;
-  risk_level: RiskLevel;
   adequacy: number;
   lighting_density: number;
+  lighting_sufficiency: number;
+  occlusion: number;
+  infrastructure_adequacy: number;
+  overall_score: number;
+  risk_score: number;
+  risk_level: RiskLevel;
+  road_type?: string;
   image_base64?: string | null;
   lat?: number;
   lon?: number;
   address?: string;
   source?: string;
+}
+
+// Click-to-analyze + persist (POST /lighting/segments/analyze)
+export interface AnalyzeSegmentResult {
+  segment: StreetSegment;
+  analysis: AnalyzeResult;
 }

@@ -2,20 +2,19 @@ package model
 
 import "testing"
 
-func TestScoreSegment(t *testing.T) {
+func TestScoreSegmentAdequacy(t *testing.T) {
 	tests := []struct {
-		name          string
-		streetlights  int
-		lengthM       float64
-		roadType      string
-		nightRatio    float64
-		wantAdequacy  float64
-		wantLevel     string
+		name         string
+		streetlights int
+		lengthM      float64
+		roadType     string
+		nightRatio   float64
+		wantAdequacy float64
 	}{
-		{"dark highway is critical", 2, 200, "highway", 0.8, 0.25, "critical"},
-		{"well lit residential is low", 5, 200, "residential", 0.2, 1.0, "low"},
-		{"unknown road type uses default", 1, 100, "unknown", 0, 0.4, "high"},
-		{"no fixtures is critical", 0, 200, "primary", 0, 0.0, "critical"},
+		{"dark highway underlit", 2, 200, "highway", 0.8, 0.25},
+		{"well lit residential", 5, 200, "residential", 0.2, 1.0},
+		{"unknown road type uses default", 1, 100, "unknown", 0, 0.4},
+		{"no fixtures", 0, 200, "primary", 0, 0.0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -23,10 +22,67 @@ func TestScoreSegment(t *testing.T) {
 			if got.Adequacy != tt.wantAdequacy {
 				t.Errorf("adequacy = %v, want %v", got.Adequacy, tt.wantAdequacy)
 			}
-			if got.RiskLevel != tt.wantLevel {
-				t.Errorf("risk level = %v, want %v (score=%v)", got.RiskLevel, tt.wantLevel, got.RiskScore)
-			}
 		})
+	}
+}
+
+// TestScoreEnvOcclusionLowersScore verifies that heavy vegetation occlusion
+// pushes a segment toward higher risk even when lamp count is unchanged.
+func TestScoreEnvOcclusionLowersScore(t *testing.T) {
+	clear := ScoreEnv(Features{Streetlights: 4, LengthM: 200, RoadType: "secondary", PoleCount: 4})
+	occluded := ScoreEnv(Features{
+		Streetlights: 4, LengthM: 200, RoadType: "secondary", PoleCount: 4,
+		VegetationRatio: 0.85, TreeCount: 8, BuildingRatio: 0.4,
+	})
+	if occluded.Occlusion <= clear.Occlusion {
+		t.Errorf("expected higher occlusion, got %v vs %v", occluded.Occlusion, clear.Occlusion)
+	}
+	if occluded.OverallScore >= clear.OverallScore {
+		t.Errorf("occlusion should lower overall score: %v vs %v", occluded.OverallScore, clear.OverallScore)
+	}
+}
+
+// TestScoreEnvAddingLampsImprovesScore is the core "adjust the rate" guarantee:
+// installing lamps must raise the overall score.
+func TestScoreEnvAddingLampsImprovesScore(t *testing.T) {
+	before := ScoreEnv(Features{Streetlights: 1, LengthM: 200, RoadType: "primary", NightRatio: 0.8})
+	after := ScoreEnv(Features{Streetlights: 6, PoleCount: 6, LengthM: 200, RoadType: "primary", NightRatio: 0.8})
+	if after.OverallScore <= before.OverallScore {
+		t.Errorf("adding lamps should improve overall: before=%v after=%v", before.OverallScore, after.OverallScore)
+	}
+	if after.LightingSufficiency <= before.LightingSufficiency {
+		t.Errorf("adding lamps should improve sufficiency: before=%v after=%v",
+			before.LightingSufficiency, after.LightingSufficiency)
+	}
+}
+
+func TestRecommendInstallsLampsWhenUnderlit(t *testing.T) {
+	s := &StreetSegment{
+		ExternalID: "x", RoadType: "primary", LengthM: 200, StreetLightCount: 1,
+		PoleCount: 1, NightSampleRatio: 0.8, VegetationRatio: 0.6, TreeCount: 6,
+	}
+	ApplyScores(s, ScoreEnv(FeaturesOf(s)))
+	recs := Recommend(s)
+	if len(recs) == 0 {
+		t.Fatal("expected recommendations for an underlit, occluded segment")
+	}
+	var hasLamps, hasTrim bool
+	for _, r := range recs {
+		if r.Action == "install_lamps" {
+			hasLamps = true
+			if r.ProjectedDelta <= 0 {
+				t.Errorf("install_lamps should project a positive delta, got %v", r.ProjectedDelta)
+			}
+		}
+		if r.Action == "trim_vegetation" {
+			hasTrim = true
+		}
+	}
+	if !hasLamps {
+		t.Error("expected an install_lamps recommendation")
+	}
+	if !hasTrim {
+		t.Error("expected a trim_vegetation recommendation")
 	}
 }
 

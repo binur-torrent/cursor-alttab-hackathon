@@ -84,6 +84,50 @@ CORRIDORS = [
 SEGMENT_LEN_M = 200.0
 TIMES = ["day", "dusk", "night", "dawn"]
 
+# Environmental feature priors by road class. These shape how much tree canopy,
+# built mass, sidewalk and open sky a typical segment of each class shows in
+# street-level imagery, so the occlusion / infrastructure scores vary realistically.
+VEGETATION_BASE = {
+    "highway": 0.12,
+    "primary": 0.22,
+    "secondary": 0.38,
+    "residential": 0.48,
+    "service": 0.42,
+}
+BUILDING_BASE = {
+    "highway": 0.15,
+    "primary": 0.50,
+    "secondary": 0.55,
+    "residential": 0.45,
+    "service": 0.40,
+}
+SIDEWALK_BASE = {
+    "highway": 0.25,
+    "primary": 0.70,
+    "secondary": 0.75,
+    "residential": 0.65,
+    "service": 0.45,
+}
+
+
+def derive_features(rng: random.Random, road_type: str, quality: float, length_m: float) -> dict:
+    """Deterministically derive environmental features for a segment."""
+    veg = scoring.clamp(VEGETATION_BASE.get(road_type, 0.35) * (1 + rng.uniform(-0.3, 0.45)), 0.02, 0.95)
+    building = scoring.clamp(BUILDING_BASE.get(road_type, 0.5) * (1 + rng.uniform(-0.25, 0.25)), 0.05, 0.9)
+    sidewalk = scoring.clamp(SIDEWALK_BASE.get(road_type, 0.6) * (0.6 + 0.5 * quality) * (1 + rng.uniform(-0.15, 0.15)), 0.0, 1.0)
+    tree_count = int(round(veg * (length_m / 100.0) * rng.uniform(2.0, 5.0)))
+    sky = scoring.clamp(1.0 - veg * 0.6 - building * 0.4, 0.1, 0.95)
+    width = scoring.road_width(road_type) * rng.uniform(0.9, 1.15)
+    return {
+        "tree_count": tree_count,
+        "vegetation_ratio": round(veg, 3),
+        "building_ratio": round(building, 3),
+        "road_width_m": round(width, 1),
+        "sidewalk_ratio": round(sidewalk, 3),
+        "sky_ratio": round(sky, 3),
+        "brightness_factor": 1.0,
+    }
+
 
 def interpolate(a: Coord, b: Coord, t: float) -> Coord:
     return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
@@ -130,7 +174,15 @@ def build(seed: int) -> dict:
             target = scoring.recommended_density(road_type)
             # Actual installed density = quality * target, with noise + occasional outages.
             noise = rng.uniform(-0.25, 0.25)
-            outage = 0.5 if rng.random() < 0.12 else 1.0  # 12% of segments have outages
+            # A small share of segments are dark spots: full outage (dead lamps)
+            # or a partial outage. These surface as critical/high-risk hotspots.
+            roll = rng.random()
+            if roll < 0.05:
+                outage = 0.0  # complete dark spot
+            elif roll < 0.15:
+                outage = 0.5  # partial outage
+            else:
+                outage = 1.0
             actual_density = max(0.0, target * quality * outage * (1 + noise))
             street_lights = int(round(actual_density * (length_m / 100.0)))
             poles = street_lights + rng.randint(0, 3)
@@ -139,12 +191,21 @@ def build(seed: int) -> dict:
             night_samples = sum(1 for _ in range(n_samples) if rng.random() < 0.45)
             night_ratio = night_samples / n_samples
 
-            breakdown = scoring.score_segment(
+            features = derive_features(rng, road_type, quality, length_m)
+            breakdown = scoring.score_env(scoring.Features(
                 streetlights=street_lights,
+                pole_count=poles,
                 length_m=length_m,
                 road_type=road_type,
-                night_sample_ratio=night_ratio,
-            )
+                night_ratio=night_ratio,
+                road_width_m=features["road_width_m"],
+                tree_count=features["tree_count"],
+                vegetation_ratio=features["vegetation_ratio"],
+                building_ratio=features["building_ratio"],
+                sidewalk_ratio=features["sidewalk_ratio"],
+                sky_ratio=features["sky_ratio"],
+                brightness_factor=features["brightness_factor"],
+            ))
 
             centroid = poly[len(poly) // 2]
             samples = []
@@ -180,9 +241,20 @@ def build(seed: int) -> dict:
                 "street_light_count": street_lights,
                 "pole_count": poles,
                 "night_sample_ratio": round(night_ratio, 3),
+                "tree_count": features["tree_count"],
+                "vegetation_ratio": features["vegetation_ratio"],
+                "building_ratio": features["building_ratio"],
+                "road_width_m": features["road_width_m"],
+                "sidewalk_ratio": features["sidewalk_ratio"],
+                "sky_ratio": features["sky_ratio"],
+                "brightness_factor": features["brightness_factor"],
                 "lighting_density": breakdown.density,
                 "recommended_density": breakdown.recommended,
                 "adequacy": breakdown.adequacy,
+                "lighting_sufficiency": breakdown.lighting_sufficiency,
+                "occlusion": breakdown.occlusion,
+                "infrastructure_adequacy": breakdown.infrastructure_adequacy,
+                "overall_score": breakdown.overall_score,
                 "risk_score": breakdown.risk_score,
                 "risk_level": breakdown.risk_level,
                 "samples": samples,

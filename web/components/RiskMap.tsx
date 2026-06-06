@@ -1,6 +1,13 @@
 "use client";
 
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Polyline,
+  CircleMarker,
+  Tooltip,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { StreetSegment } from "@/lib/types";
 import { riskColor } from "@/lib/format";
@@ -9,19 +16,30 @@ interface RiskMapProps {
   segments: StreetSegment[];
   selectedId?: string | null;
   onSelect: (segment: StreetSegment) => void;
+  onMapClick?: (lat: number, lon: number) => void;
   marker?: { lat: number; lon: number } | null;
 }
 
 const ISTANBUL_CENTER: [number, number] = [41.02, 29.0];
 
-export default function RiskMap({ segments, selectedId, onSelect, marker }: RiskMapProps) {
+function ClickToAnalyze({ onMapClick }: { onMapClick?: (lat: number, lon: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onMapClick?.(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+export default function RiskMap({ segments, selectedId, onSelect, onMapClick, marker }: RiskMapProps) {
   return (
     <MapContainer
       center={ISTANBUL_CENTER}
       zoom={11}
       scrollWheelZoom
-      style={{ height: "100%", width: "100%", background: "#0b1120" }}
+      style={{ height: "100%", width: "100%", background: "#0b1120", cursor: "crosshair" }}
     >
+      <ClickToAnalyze onMapClick={onMapClick} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -44,9 +62,9 @@ export default function RiskMap({ segments, selectedId, onSelect, marker }: Risk
               <div className="text-xs">
                 <strong>{seg.name}</strong>
                 <br />
-                {seg.district} · risk {seg.risk_score} ({seg.risk_level})
+                {seg.district} · lighting score {Math.round(seg.overall_score)}/100 ({seg.risk_level})
                 <br />
-                {seg.street_light_count} lights · {seg.length_m} m
+                {seg.street_light_count} lamps · {seg.length_m} m
               </div>
             </Tooltip>
           </Polyline>

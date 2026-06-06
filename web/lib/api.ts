@@ -1,8 +1,11 @@
 import type {
   AnalyzeResult,
+  AnalyzeSegmentResult,
   CityStats,
   MapResponse,
   Paginated,
+  RescoreRequest,
+  RescoreResult,
   ScenarioParams,
   ScenarioResult,
   SegmentDetail,
@@ -45,6 +48,8 @@ export const api = {
     );
   },
   segment: (id: string) => getJSON<SegmentDetail>(`/api/v1/lighting/segments/${id}`),
+  rescore: (id: string, body: RescoreRequest) =>
+    postJSON<RescoreResult>(`/api/v1/lighting/segments/${id}/rescore`, body),
   simulate: (params: ScenarioParams) =>
     postJSON<ScenarioResult>("/api/v1/lighting/simulate", params),
   analyze: (body: {
@@ -56,4 +61,12 @@ export const api = {
     is_night?: boolean;
     address?: string;
   }) => postJSON<AnalyzeResult>("/api/v1/lighting/analyze", body),
+  analyzeSegment: (body: {
+    lat: number;
+    lon: number;
+    road_type?: string;
+    length_m?: number;
+    is_night?: boolean;
+    address?: string;
+  }) => postJSON<AnalyzeSegmentResult>("/api/v1/lighting/segments/analyze", body),
 };

@@ -1,12 +1,24 @@
 # LumiCity AI
 
-**Intelligent urban lighting analysis and simulation for Istanbul.**
+**AI-powered urban lighting assessment & planning for municipalities.**
 
 LumiCity AI combines HuggingFace computer-vision models, geolocated street-level
-imagery, and an interactive digital twin to give municipalities a decision-support
-tool for adaptive streetlight network design. It detects streetlight fixtures from
-imagery, scores each street segment for lighting adequacy / safety risk, and lets
-planners simulate energy-vs-safety trade-offs on a live map.
+imagery, and an interactive map to help cities find where street lighting is
+insufficient, understand *why*, and decide which fixes have the most impact.
+
+A planner **clicks a street segment** on the map. LumiCity assesses the scene —
+lamps, poles, trees/vegetation, buildings, road width, sidewalks, sky visibility —
+and scores it on three transparent dimensions:
+
+- **Lighting Sufficiency** (0–100) — lamp coverage vs. the recommended density
+- **Occlusion** (0–100, higher = worse) — vegetation/built mass blocking light
+- **Infrastructure Adequacy** (0–100) — poles, sidewalks, physical readiness
+
+…rolled up into a single **Overall Lighting Score**. The platform then generates
+ranked recommendations (install N lamp posts, increase brightness, trim
+vegetation, schedule inspection) and lets the planner **adjust the segment** —
+add lamps or trim trees and watch the score and the map recolor live, *before*
+spending public money.
 
 > Built for the Cursor Hackathon Istanbul. Urban Impact + Working AI + Strong Demo + Privacy Compliance.
 
@@ -38,6 +50,24 @@ internal/infrastructure/postgres/lighting -> pgx repositories
 internal/infrastructure/http/handler/lighting -> Chi handlers
 internal/infrastructure/postgres/migrations  -> goose migrations
 ```
+
+## Scoring model & key API
+
+The scoring model is a single source of truth, implemented as **byte-for-byte
+ports** in Go ([`scoring.go`](backend/internal/domain/lighting/model/scoring.go))
+and Python ([`scoring.py`](ai/pipeline/scoring.py)) so precomputed seed scores and
+live scores always agree (enforced by `.cursor/rules/scoring-consistency.mdc`).
+
+Lighting endpoints (public, read by the dashboard):
+
+| Method & path | Purpose |
+|---------------|---------|
+| `GET  /api/v1/lighting/segments/map` | All segments (with geometry) for the map |
+| `GET  /api/v1/lighting/segments/{id}` | One segment's full detail |
+| `POST /api/v1/lighting/segments/{id}/rescore` | **What-if**: apply an intervention (add lamps, trim vegetation, brightness); returns baseline vs projected scores + recommendations. `persist:true` writes it back so the map recolors |
+| `GET  /api/v1/lighting/stats` | Network-wide KPIs |
+| `POST /api/v1/lighting/analyze` | On-demand analysis of an arbitrary point |
+| `POST /api/v1/lighting/simulate` | Network-wide adaptive-lighting scenario |
 
 ## Quick start
 
