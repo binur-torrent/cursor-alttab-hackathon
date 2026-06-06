@@ -1,0 +1,51 @@
+# ---- LumiCity AI monorepo .gitignore ----
+
+# === KVKK / Privacy: NEVER commit raw imagery or unanonymized data ===
+data/raw/
+data/cache/
+**/*.raw.jpg
+**/*.raw.png
+*.streetview.jpg
+ai/.hf_cache/
+ai/models/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# Go
+backend/bin/
+backend/tmp/
+backend/coverage.out
+backend/coverage.html
+
+# Node / Next.js
+node_modules/
+web/.next/
+web/out/
+web/.vercel/
+mobile/.expo/
+mobile/dist/
+npm-debug.log*
+yarn-error.log*
+
+# Python
+ai/.venv/
+ai/venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/

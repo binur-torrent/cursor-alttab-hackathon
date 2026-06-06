@@ -1,0 +1,54 @@
+# Render Blueprint for LumiCity AI backend (masterfabric-go architecture).
+# Deploy: push to GitHub, then on Render "New +" -> "Blueprint" -> select repo.
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: lumicity-db
+    plan: free
+    databaseName: masterfabric
+    user: masterfabric
+
+services:
+  # --- Go backend (masterfabric-go + lighting bounded context) ---
+  - type: web
+    name: lumicity-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/deployments/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health/live
+    envVars:
+      - key: DB_HOST
+        fromDatabase: { name: lumicity-db, property: host }
+      - key: DB_PORT
+        fromDatabase: { name: lumicity-db, property: port }
+      - key: DB_USER
+        fromDatabase: { name: lumicity-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: lumicity-db, property: password }
+      - key: DB_NAME
+        fromDatabase: { name: lumicity-db, property: database }
+      - key: DB_SSLMODE
+        value: require
+      - key: KAFKA_ENABLED
+        value: "false"
+      - key: LIGHTING_AUTOSEED
+        value: "true"
+      - key: LIGHTING_ENSURE_SCHEMA
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_WORKER_URL
+        value: "" # optional: set to the deployed FastAPI worker for live analysis
+
+  # --- Python AI worker (optional, for live Street View analysis) ---
+  - type: web
+    name: lumicity-ai-worker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./ai/worker/Dockerfile
+    dockerContext: ./ai/worker
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_BACKEND
+        value: "heuristic" # "heuristic" (no model download) or "mask2former"
