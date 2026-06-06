@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Smart Lamp · Lamp (Phone B)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    background: #05070d; color: #e2e8f0; transition: background .35s ease;
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    -webkit-user-select: none; user-select: none; overflow: hidden;
+  }
+  /* Lamp ON: fullscreen white at maximum intensity. */
+  body.on  { background: #ffffff; color: #0b1120; }
+  /* Lamp OFF: minimum brightness (near black). */
+  body.off { background: #05070d; color: #475569; }
+
+  .hud {
+    text-align: center; padding: 24px; border-radius: 20px; backdrop-filter: blur(2px);
+  }
+  body.on .hud { background: rgba(0,0,0,.04); }
+  .state { font-size: clamp(48px, 16vw, 160px); font-weight: 900; line-height: 1; letter-spacing: .02em; }
+  .lum { font-size: clamp(20px, 6vw, 40px); font-weight: 700; margin-top: 8px; }
+  .lum small { font-weight: 600; opacity: .6; font-size: .5em; }
+  .ts { margin-top: 14px; font-size: 14px; opacity: .65; }
+  .tag { margin-top: 6px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .55; }
+  .ws { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #475569; margin-right: 6px; vertical-align: middle; }
+  .ws.live { background: #22c55e; }
+  .start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #05070d; }
+  .start button { padding: 18px 28px; border: 0; border-radius: 14px; font-size: 18px; font-weight: 800; background: #fbbf24; color: #0b1120; }
+</style>
+</head>
+<body class="off">
+  <div class="hud">
+    <div class="state" id="state">OFF</div>
+    <div class="lum"><span id="lum">--</span><small> / 100 lux-score</small></div>
+    <div class="ts"><span id="wsdot" class="ws"></span><span id="ts">waiting for sensor…</span></div>
+    <div class="tag" id="roomline"></div>
+  </div>
+
+  <!-- A user gesture is required to enter fullscreen on phones. -->
+  <div class="start" id="startOverlay">
+    <button id="startBtn">Activate lamp (fullscreen)</button>
+  </div>
+
+<script>
+(function () {
+  var THRESHOLD = 20;
+  var STALE_MS = 3000;
+
+  var params = new URLSearchParams(location.search);
+  var room = params.get("room") || "demo";
+  document.getElementById("roomline").textContent = "room: " + room + " · lamp ON when luminance < " + THRESHOLD;
+
+  var body = document.body;
+  var stateEl = document.getElementById("state");
+  var lumEl = document.getElementById("lum");
+  var tsEl = document.getElementById("ts");
+  var wsDot = document.getElementById("wsdot");
+  var overlay = document.getElementById("startOverlay");
+  var startBtn = document.getElementById("startBtn");
+
+  var lastUpdate = 0;
+  var ws = null;
+
+  function wsUrl() {
+    var proto = location.protocol === "https:" ? "wss" : "ws";
+    return proto + "://" + location.host + "/ws/lamp?room=" + encodeURIComponent(room) + "&role=screen";
+  }
+
+  function setLamp(on) {
+    body.classList.toggle("on", on);
+    body.classList.toggle("off", !on);
+    stateEl.textContent = on ? "ON" : "OFF";
+  }
+
+  function apply(msg) {
+    if (typeof msg.luminance !== "number") return;
+    lastUpdate = Date.now();
+    var on = msg.lamp ? msg.lamp === "ON" : msg.luminance < THRESHOLD;
+    setLamp(on);
+    lumEl.textContent = msg.luminance;
+    tsEl.textContent = "updated " + new Date(msg.ts || lastUpdate).toLocaleTimeString();
+  }
+
+  function connect() {
+    ws = new WebSocket(wsUrl());
+    ws.onopen = function () { wsDot.classList.add("live"); };
+    ws.onmessage = function (ev) {
+      try { apply(JSON.parse(ev.data)); } catch (e) {}
+    };
+    ws.onclose = function () {
+      wsDot.classList.remove("live");
+      setTimeout(connect, 1500);
+    };
+  }
+
+  // Flag the reading as stale if the sensor goes silent.
+  setInterval(function () {
+    if (lastUpdate && Date.now() - lastUpdate > STALE_MS) {
+      tsEl.textContent = "sensor silent since " + new Date(lastUpdate).toLocaleTimeString();
+    }
+  }, 1000);
+
+  startBtn.addEventListener("click", function () {
+    overlay.style.display = "none";
+    var el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    connect();
+  });
+})();
+</script>
+</body>
+</html>

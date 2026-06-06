@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smart Lamp Prototype</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    background: #0b1120; color: #e2e8f0; min-height: 100vh; padding: 28px 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 22px;
+  }
+  header { text-align: center; }
+  .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #fbbf24; box-shadow: 0 0 14px 3px rgba(251,191,36,.7); margin-right: 8px; vertical-align: middle; }
+  h1 { font-size: 24px; margin: 0; display: inline; vertical-align: middle; }
+  p.sub { color: #94a3b8; margin: 8px 0 0; font-size: 14px; }
+  .cards { display: grid; gap: 16px; grid-template-columns: 1fr; width: 100%; max-width: 760px; }
+  @media (min-width: 640px) { .cards { grid-template-columns: 1fr 1fr; } }
+  .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 18px; padding: 20px; text-align: center; }
+  .card h2 { margin: 0 0 4px; font-size: 18px; }
+  .card .who { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+  .card p { color: #94a3b8; font-size: 13px; line-height: 1.5; }
+  .qr { background: #fff; border-radius: 12px; padding: 10px; display: inline-block; margin: 12px 0; }
+  .qr img { display: block; width: 180px; height: 180px; }
+  a.btn { display: inline-block; margin-top: 6px; padding: 12px 18px; border-radius: 10px; font-weight: 700; text-decoration: none; background: #fbbf24; color: #0b1120; }
+  .logic { max-width: 760px; width: 100%; background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 18px; }
+  code { background: #020617; padding: 2px 6px; border-radius: 6px; color: #fcd34d; }
+  .url { font-size: 11px; color: #475569; word-break: break-all; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="dot"></span><h1>Smart Lamp Prototype</h1>
+    <p class="sub">Two phones, one street lamp. Phone A reads the light, Phone B becomes the lamp — live over WebSocket.</p>
+  </header>
+
+  <div class="cards">
+    <div class="card">
+      <div class="who">Phone A</div>
+      <h2>Sensor</h2>
+      <p>Points its camera at the scene and streams a 0–100 luminance score every 500ms.</p>
+      <div class="qr"><img id="qrSensor" alt="Sensor QR" /></div><br/>
+      <a class="btn" id="linkSensor" href="/lamp/sensor">Open sensor</a>
+      <div class="url" id="urlSensor"></div>
+    </div>
+    <div class="card">
+      <div class="who">Phone B</div>
+      <h2>Lamp screen</h2>
+      <p>Goes fullscreen white (max brightness) when it's dark, off when it's bright.</p>
+      <div class="qr"><img id="qrScreen" alt="Screen QR" /></div><br/>
+      <a class="btn" id="linkScreen" href="/lamp/screen">Open lamp</a>
+      <div class="url" id="urlScreen"></div>
+    </div>
+  </div>
+
+  <div class="logic">
+    <strong>Control logic</strong>
+    <p style="color:#94a3b8;font-size:13px;line-height:1.7;margin:8px 0 0">
+      if <code>luminance &lt; 20</code> → lamp <strong>ON</strong>, screen brightness <em>max</em><br/>
+      if <code>luminance &gt;= 20</code> → lamp <strong>OFF</strong>, screen brightness <em>min</em><br/>
+      Open both on the <em>same room</em> with <code>?room=demo</code>.
+    </p>
+  </div>
+
+<script>
+  var room = new URLSearchParams(location.search).get("room") || "demo";
+  var origin = location.origin;
+  var sensorUrl = origin + "/lamp/sensor?room=" + encodeURIComponent(room);
+  var screenUrl = origin + "/lamp/screen?room=" + encodeURIComponent(room);
+
+  document.getElementById("linkSensor").href = sensorUrl;
+  document.getElementById("linkScreen").href = screenUrl;
+  document.getElementById("urlSensor").textContent = sensorUrl;
+  document.getElementById("urlScreen").textContent = screenUrl;
+
+  // Public QR image service keeps the page dependency-free for the demo.
+  function qr(el, url) {
+    document.getElementById(el).src =
+      "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(url);
+  }
+  qr("qrSensor", sensorUrl);
+  qr("qrScreen", screenUrl);
+</script>
+</body>
+</html>

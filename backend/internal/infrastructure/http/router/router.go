@@ -16,6 +16,7 @@ import (
 	auditHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/audit"
 	"github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/health"
 	iamHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/iam"
+	lampHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/lamp"
 	lightingHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/lighting"
 	tenantHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/tenant"
 
@@ -44,6 +45,7 @@ type Dependencies struct {
 	APIMgmtHandler *apimgmtHandler.Handler
 	AuditHandler  *auditHandler.Handler
 	LightingHandler *lightingHandler.Handler
+	LampHandler   *lampHandler.Handler
 
 	// Gateway
 	GatewayPipeline *gateway.Pipeline
@@ -77,6 +79,17 @@ func New(deps Dependencies) *chi.Mux {
 
 	// Prometheus metrics
 	r.Handle("/metrics", promhttp.Handler())
+
+	// Smart Lamp Prototype demo: WebSocket relay + two self-contained phone
+	// pages. Registered at the root (outside /api/v1) so it is not behind JWT
+	// or the gateway pipeline, and so a single HTTPS origin serves the camera
+	// page and the wss:// socket for a two-phone live demo.
+	if deps.LampHandler != nil {
+		r.Get("/ws/lamp", deps.LampHandler.ServeWS)
+		r.Get("/lamp", deps.LampHandler.ServeIndex)
+		r.Get("/lamp/sensor", deps.LampHandler.ServeSensor)
+		r.Get("/lamp/screen", deps.LampHandler.ServeScreen)
+	}
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {

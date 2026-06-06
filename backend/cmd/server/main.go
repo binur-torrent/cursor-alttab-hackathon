@@ -19,6 +19,7 @@ import (
 	apimgmtHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/apimanagement"
 	auditHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/audit"
 	iamHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/iam"
+	lampHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/lamp"
 	lightingHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/lighting"
 	tenantHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/tenant"
 	"github.com/masterfabric-go/masterfabric/internal/infrastructure/http/router"
@@ -201,6 +202,11 @@ func buildDependencies(
 		DB:     db,
 		Redis:  redisClient,
 	}
+
+	// Smart Lamp Prototype demo relay. Has no DB/Redis dependency, so wire it
+	// up before the early return below — the two-phone demo works even when the
+	// platform runs without Postgres.
+	deps.LampHandler = lampHandler.NewHandler(log)
 
 	if db == nil {
 		log.Warn("database not available, API endpoints will not work")

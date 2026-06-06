@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Smart Lamp · Sensor (Phone A)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    background: #0b1120; color: #e2e8f0; min-height: 100vh;
+    display: flex; flex-direction: column; gap: 14px; padding: 16px;
+  }
+  header { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #fbbf24; box-shadow: 0 0 12px 2px rgba(251,191,36,.7); }
+  h1 { font-size: 18px; margin: 0; }
+  .sub { color: #94a3b8; font-size: 12px; margin: 0; }
+  video { width: 100%; border-radius: 14px; background: #000; aspect-ratio: 4/3; object-fit: cover; border: 1px solid #1e293b; }
+  .gauge { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 16px; }
+  .lum { font-size: 64px; font-weight: 800; line-height: 1; }
+  .lum small { font-size: 18px; color: #94a3b8; font-weight: 600; }
+  .bar { height: 12px; border-radius: 6px; background: #1e293b; overflow: hidden; margin-top: 12px; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg,#0ea5e9,#fbbf24); transition: width .2s; }
+  .meta { display: flex; justify-content: space-between; margin-top: 12px; font-size: 13px; color: #94a3b8; }
+  .lamp { font-weight: 700; padding: 3px 10px; border-radius: 999px; font-size: 12px; letter-spacing: .04em; }
+  .lamp.on  { background: rgba(251,191,36,.18); color: #fcd34d; border: 1px solid #fbbf24; }
+  .lamp.off { background: rgba(100,116,139,.18); color: #94a3b8; border: 1px solid #475569; }
+  button {
+    width: 100%; padding: 16px; border: 0; border-radius: 12px; font-size: 16px; font-weight: 700;
+    background: #fbbf24; color: #0b1120;
+  }
+  .status { font-size: 13px; color: #94a3b8; text-align: center; min-height: 18px; }
+  .ws { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #475569; margin-right: 6px; vertical-align: middle; }
+  .ws.live { background: #22c55e; }
+  canvas { display: none; }
+  .room { font-size: 12px; color: #64748b; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="dot"></span>
+    <div>
+      <h1>Sensor · Phone A</h1>
+      <p class="sub">Estimates scene luminance from the camera</p>
+    </div>
+  </header>
+
+  <video id="video" playsinline muted autoplay></video>
+  <canvas id="canvas" width="64" height="48"></canvas>
+
+  <div class="gauge">
+    <div class="lum"><span id="lum">--</span><small> / 100</small></div>
+    <div class="bar"><i id="fill" style="width:0%"></i></div>
+    <div class="meta">
+      <span>Lamp would be <span id="lamp" class="lamp off">OFF</span></span>
+      <span id="ts">—</span>
+    </div>
+  </div>
+
+  <button id="start">Start camera & streaming</button>
+  <div class="status"><span id="wsdot" class="ws"></span><span id="status">Tap start to begin</span></div>
+  <div class="room" id="roomline"></div>
+
+<script>
+(function () {
+  var THRESHOLD = 20;       // luminance below this => lamp ON
+  var INTERVAL_MS = 500;    // send cadence
+
+  var params = new URLSearchParams(location.search);
+  var room = params.get("room") || "demo";
+  document.getElementById("roomline").textContent = "room: " + room + "  ·  threshold: " + THRESHOLD;
+
+  var video = document.getElementById("video");
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
+  var lumEl = document.getElementById("lum");
+  var fillEl = document.getElementById("fill");
+  var lampEl = document.getElementById("lamp");
+  var tsEl = document.getElementById("ts");
+  var statusEl = document.getElementById("status");
+  var wsDot = document.getElementById("wsdot");
+  var startBtn = document.getElementById("start");
+
+  var ws = null, timer = null, started = false;
+
+  function wsUrl() {
+    var proto = location.protocol === "https:" ? "wss" : "ws";
+    return proto + "://" + location.host + "/ws/lamp?room=" + encodeURIComponent(room) + "&role=sensor";
+  }
+
+  function connect() {
+    ws = new WebSocket(wsUrl());
+    ws.onopen = function () { wsDot.classList.add("live"); statusEl.textContent = "Streaming luminance every " + INTERVAL_MS + "ms"; };
+    ws.onclose = function () {
+      wsDot.classList.remove("live");
+      statusEl.textContent = "Disconnected — reconnecting…";
+      setTimeout(function () { if (started) connect(); }, 1500);
+    };
+    ws.onerror = function () { statusEl.textContent = "WebSocket error"; };
+  }
+
+  // Average relative luminance (Rec. 601) of a downscaled frame, mapped to 0..100.
+  function estimateLuminance() {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    var sum = 0, n = data.length / 4;
+    for (var i = 0; i < data.length; i += 4) {
+      sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    }
+    var avg = sum / n;             // 0..255
+    return Math.round((avg / 255) * 100);
+  }
+
+  function tick() {
+    if (video.readyState < 2) return;
+    var lum = estimateLuminance();
+    var lampOn = lum < THRESHOLD;
+    var now = Date.now();
+
+    lumEl.textContent = lum;
+    fillEl.style.width = lum + "%";
+    lampEl.textContent = lampOn ? "ON" : "OFF";
+    lampEl.className = "lamp " + (lampOn ? "on" : "off");
+    tsEl.textContent = new Date(now).toLocaleTimeString();
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ luminance: lum, lamp: lampOn ? "ON" : "OFF", threshold: THRESHOLD, ts: now }));
+    }
+  }
+
+  async function start() {
+    if (started) return;
+    statusEl.textContent = "Requesting camera…";
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } }, audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      started = true;
+      startBtn.textContent = "Streaming…";
+      startBtn.disabled = true;
+      connect();
+      timer = setInterval(tick, INTERVAL_MS);
+    } catch (e) {
+      statusEl.textContent = "Camera blocked: " + (e && e.message ? e.message : e) + " (needs HTTPS)";
+    }
+  }
+
+  startBtn.addEventListener("click", start);
+})();
+</script>
+</body>
+</html>
