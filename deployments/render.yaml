@@ -47,8 +47,10 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./ai/worker/Dockerfile
-    dockerContext: ./ai/worker
+    dockerContext: ./ai
     healthCheckPath: /health
     envVars:
       - key: MODEL_BACKEND
         value: "heuristic" # "heuristic" (no model download) or "mask2former"
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false # set in Render dashboard; never commit the key

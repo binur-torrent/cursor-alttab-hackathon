@@ -1,0 +1,16 @@
+# LumiCity AI - ingestion pipeline dependencies
+# Core (pipeline.run): HuggingFace datasets + Mask2Former (Mapillary Vistas)
+datasets>=2.19.0
+huggingface-hub>=0.23.0
+transformers>=4.41.0
+torch>=2.2.0
+Pillow>=10.0.0
+numpy>=1.26.0
+# Anonymization (face + plate blur)
+opencv-python-headless>=4.9.0
+# Progress / utilities
+tqdm>=4.66.0
+
+# NOTE: pipeline.generate_seed has ZERO third-party deps (stdlib only) so the
+# demo seed can always be regenerated. The packages above are only needed for
+# live HuggingFace ingestion (pipeline.run) and the FastAPI worker.
