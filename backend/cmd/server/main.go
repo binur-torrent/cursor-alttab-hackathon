@@ -292,6 +292,7 @@ func buildDependencies(
 	listSegmentsUC := lightingUC.NewListSegmentsUseCase(segmentRepo)
 	getSegmentUC := lightingUC.NewGetSegmentUseCase(segmentRepo, fixtureRepo, analysisRepo)
 	getStatsUC := lightingUC.NewGetStatsUseCase(segmentRepo)
+	simulateUC := lightingUC.NewSimulateScenarioUseCase(segmentRepo)
 	ingestSeedUC := lightingUC.NewIngestSeedUseCase(segmentRepo, fixtureRepo, analysisRepo)
 
 	// Auto-seed from the embedded, anonymized AI pipeline output if empty.
@@ -307,7 +308,7 @@ func buildDependencies(
 		}
 	}
 
-	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC)
+	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC)
 
 	// --- Gateway pipeline with interceptors ---
 	// Create interceptor chain: schema validation, PII masking, request/response transformers

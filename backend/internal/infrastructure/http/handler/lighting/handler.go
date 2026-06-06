@@ -8,10 +8,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/masterfabric-go/masterfabric/internal/application/lighting/dto"
 	"github.com/masterfabric-go/masterfabric/internal/application/lighting/usecase"
 	"github.com/masterfabric-go/masterfabric/internal/domain/lighting/repository"
 	"github.com/masterfabric-go/masterfabric/internal/shared/pagination"
 	"github.com/masterfabric-go/masterfabric/internal/shared/response"
+	"github.com/masterfabric-go/masterfabric/internal/shared/validator"
 )
 
 // Handler provides Lighting HTTP handlers.
@@ -19,6 +21,7 @@ type Handler struct {
 	listSegmentsUC *usecase.ListSegmentsUseCase
 	getSegmentUC   *usecase.GetSegmentUseCase
 	getStatsUC     *usecase.GetStatsUseCase
+	simulateUC     *usecase.SimulateScenarioUseCase
 }
 
 // NewHandler creates a new Lighting handler.
@@ -26,11 +29,13 @@ func NewHandler(
 	listSegmentsUC *usecase.ListSegmentsUseCase,
 	getSegmentUC *usecase.GetSegmentUseCase,
 	getStatsUC *usecase.GetStatsUseCase,
+	simulateUC *usecase.SimulateScenarioUseCase,
 ) *Handler {
 	return &Handler{
 		listSegmentsUC: listSegmentsUC,
 		getSegmentUC:   getSegmentUC,
 		getStatsUC:     getStatsUC,
+		simulateUC:     simulateUC,
 	}
 }
 
@@ -102,4 +107,24 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, stats)
+}
+
+// Simulate runs an adaptive-lighting policy simulation (energy vs safety).
+func (h *Handler) Simulate(w http.ResponseWriter, r *http.Request) {
+	var req dto.SimulateRequest
+	if err := validator.DecodeAndValidate(r, &req); err != nil {
+		response.JSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	result, err := h.simulateUC.Execute(
+		r.Context(),
+		req.ScenarioParams,
+		repository.SegmentFilter{District: req.District},
+	)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, result)
 }

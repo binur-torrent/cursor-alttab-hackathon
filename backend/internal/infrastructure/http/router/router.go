@@ -97,6 +97,7 @@ func New(deps Dependencies) *chi.Mux {
 				r.Get("/segments/map", deps.LightingHandler.ListMap)
 				r.Get("/segments/{id}", deps.LightingHandler.GetSegment)
 				r.Get("/stats", deps.LightingHandler.GetStats)
+				r.Post("/simulate", deps.LightingHandler.Simulate)
 			})
 		}
 

@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import MapView from "@/components/MapView";
 import StatsBar from "@/components/StatsBar";
 import SegmentPanel from "@/components/SegmentPanel";
+import SimulationPanel from "@/components/SimulationPanel";
 import { api } from "@/lib/api";
 import type { CityStats, SegmentDetail, StreetSegment } from "@/lib/types";
+
+type Tab = "inspect" | "simulate";
 
 const RISK_FILTERS = [
   { value: "", label: "All segments" },
@@ -22,6 +25,7 @@ export default function Dashboard() {
   const [detail, setDetail] = useState<SegmentDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [riskFilter, setRiskFilter] = useState("");
+  const [tab, setTab] = useState<Tab>("inspect");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,6 +41,7 @@ export default function Dashboard() {
 
   async function handleSelect(seg: StreetSegment) {
     setSelected(seg);
+    setTab("inspect");
     setDetailLoading(true);
     try {
       const d = await api.segment(seg.external_id);
@@ -47,6 +52,8 @@ export default function Dashboard() {
       setDetailLoading(false);
     }
   }
+
+  const districts = (stats?.by_district ?? []).map((d) => d.district);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-4 p-4 lg:p-6">
@@ -92,7 +99,24 @@ export default function Dashboard() {
           />
         </div>
         <aside className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4">
-          <SegmentPanel detail={detail} loading={detailLoading} />
+          <div className="mb-4 flex rounded-lg border border-slate-800 p-0.5 text-sm">
+            {(["inspect", "simulate"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex-1 rounded-md px-3 py-1.5 capitalize transition ${
+                  tab === t ? "bg-slate-800 text-slate-50" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          {tab === "inspect" ? (
+            <SegmentPanel detail={detail} loading={detailLoading} />
+          ) : (
+            <SimulationPanel districts={districts} />
+          )}
         </aside>
       </div>
 
