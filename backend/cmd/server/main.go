@@ -18,17 +18,21 @@ import (
 	apimgmtHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/apimanagement"
 	auditHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/audit"
 	iamHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/iam"
+	lightingHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/lighting"
 	tenantHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/tenant"
 	"github.com/masterfabric-go/masterfabric/internal/infrastructure/http/router"
 	infraKafka "github.com/masterfabric-go/masterfabric/internal/infrastructure/kafka"
 	pgApimgmt "github.com/masterfabric-go/masterfabric/internal/infrastructure/postgres/apimanagement"
 	pgAudit "github.com/masterfabric-go/masterfabric/internal/infrastructure/postgres/audit"
 	pgIam "github.com/masterfabric-go/masterfabric/internal/infrastructure/postgres/iam"
+	pgLighting "github.com/masterfabric-go/masterfabric/internal/infrastructure/postgres/lighting"
 	pgTenant "github.com/masterfabric-go/masterfabric/internal/infrastructure/postgres/tenant"
 
 	// Application use cases
 	apimgmtUC "github.com/masterfabric-go/masterfabric/internal/application/apimanagement/usecase"
 	iamUC "github.com/masterfabric-go/masterfabric/internal/application/iam/usecase"
+	lightingSeed "github.com/masterfabric-go/masterfabric/internal/application/lighting/seed"
+	lightingUC "github.com/masterfabric-go/masterfabric/internal/application/lighting/usecase"
 	tenantUC "github.com/masterfabric-go/masterfabric/internal/application/tenant/usecase"
 
 	// Gateway
@@ -269,6 +273,42 @@ func buildDependencies(
 	deps.APIMgmtHandler = apimgmtHandler.NewHandler(defineEndpointUC, updatePolicyUC, retireEndpointUC, activateEndpointUC, endpointRepo, policyRepo)
 	deps.AuditHandler = auditHandler.NewHandler(auditRepo)
 
+	// --- Lighting (LumiCity) bounded context ---
+	segmentRepo := pgLighting.NewSegmentRepo(db)
+	fixtureRepo := pgLighting.NewFixtureRepo(db)
+	analysisRepo := pgLighting.NewAnalysisRepo(db)
+
+	// Ensure lighting schema (idempotent) so cloud deploys work without a
+	// separate goose migration step. Canonical migration still lives in
+	// internal/infrastructure/postgres/migrations/00013_create_lighting.sql.
+	if envBool("LIGHTING_ENSURE_SCHEMA", true) {
+		if err := pgLighting.EnsureSchema(context.Background(), db); err != nil {
+			log.Warn("failed to ensure lighting schema", "error", err)
+		} else {
+			log.Info("lighting schema ensured")
+		}
+	}
+
+	listSegmentsUC := lightingUC.NewListSegmentsUseCase(segmentRepo)
+	getSegmentUC := lightingUC.NewGetSegmentUseCase(segmentRepo, fixtureRepo, analysisRepo)
+	getStatsUC := lightingUC.NewGetStatsUseCase(segmentRepo)
+	ingestSeedUC := lightingUC.NewIngestSeedUseCase(segmentRepo, fixtureRepo, analysisRepo)
+
+	// Auto-seed from the embedded, anonymized AI pipeline output if empty.
+	if envBool("LIGHTING_AUTOSEED", true) {
+		if count, err := segmentRepo.Count(context.Background()); err == nil && count == 0 {
+			res, seedErr := ingestSeedUC.Execute(context.Background(), lightingSeed.SegmentsJSON)
+			if seedErr != nil {
+				log.Warn("lighting autoseed failed", "error", seedErr)
+			} else {
+				log.Info("lighting autoseed complete",
+					"segments", res.Segments, "fixtures", res.Fixtures, "analyses", res.Analyses)
+			}
+		}
+	}
+
+	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC)
+
 	// --- Gateway pipeline with interceptors ---
 	// Create interceptor chain: schema validation, PII masking, request/response transformers
 	piiMasker := gatewayInterceptors.NewPIIMasker(
@@ -310,4 +350,13 @@ func buildDependencies(
 	)
 
 	return deps
+}
+
+// envBool reads a boolean-ish env var ("true"/"1" => true), with a default.
+func envBool(key string, defaultVal bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+	return v == "true" || v == "1" || v == "TRUE"
 }

@@ -16,6 +16,7 @@ import (
 	auditHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/audit"
 	"github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/health"
 	iamHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/iam"
+	lightingHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/lighting"
 	tenantHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/tenant"
 
 	// Services & middleware
@@ -42,6 +43,7 @@ type Dependencies struct {
 	TenantHandler *tenantHandler.Handler
 	APIMgmtHandler *apimgmtHandler.Handler
 	AuditHandler  *auditHandler.Handler
+	LightingHandler *lightingHandler.Handler
 
 	// Gateway
 	GatewayPipeline *gateway.Pipeline
@@ -85,6 +87,18 @@ func New(deps Dependencies) *chi.Mux {
 				r.Post("/login", deps.IAMHandler.Login)
 			}
 		})
+
+		// Public LumiCity lighting routes (the dashboard reads these directly).
+		// Registered here (sibling of /auth) so they are not behind JWT or the
+		// gateway pipeline catch-all.
+		if deps.LightingHandler != nil {
+			r.Route("/lighting", func(r chi.Router) {
+				r.Get("/segments", deps.LightingHandler.ListSegments)
+				r.Get("/segments/map", deps.LightingHandler.ListMap)
+				r.Get("/segments/{id}", deps.LightingHandler.GetSegment)
+				r.Get("/stats", deps.LightingHandler.GetStats)
+			})
+		}
 
 		// Protected routes (require JWT)
 		r.Group(func(r chi.Router) {
