@@ -23,6 +23,7 @@ type Handler struct {
 	getStatsUC     *usecase.GetStatsUseCase
 	simulateUC     *usecase.SimulateScenarioUseCase
 	analyzeLiveUC  *usecase.AnalyzeLiveUseCase
+	rescoreUC      *usecase.RescoreSegmentUseCase
 }
 
 // NewHandler creates a new Lighting handler.
@@ -32,6 +33,7 @@ func NewHandler(
 	getStatsUC *usecase.GetStatsUseCase,
 	simulateUC *usecase.SimulateScenarioUseCase,
 	analyzeLiveUC *usecase.AnalyzeLiveUseCase,
+	rescoreUC *usecase.RescoreSegmentUseCase,
 ) *Handler {
 	return &Handler{
 		listSegmentsUC: listSegmentsUC,
@@ -39,6 +41,7 @@ func NewHandler(
 		getStatsUC:     getStatsUC,
 		simulateUC:     simulateUC,
 		analyzeLiveUC:  analyzeLiveUC,
+		rescoreUC:      rescoreUC,
 	}
 }
 
@@ -142,6 +145,26 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.analyzeLiveUC.Execute(r.Context(), req)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, result)
+}
+
+// Rescore applies a what-if intervention to a segment (add lamps, trim
+// vegetation, change brightness) and returns the baseline vs projected scores
+// plus recommendations. With persist=true it writes the new state back so the
+// map recolors. Accepts a UUID or external id in the path.
+func (h *Handler) Rescore(w http.ResponseWriter, r *http.Request) {
+	idParam := chi.URLParam(r, "id")
+	var req dto.RescoreRequest
+	if err := validator.DecodeAndValidate(r, &req); err != nil {
+		response.JSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	result, err := h.rescoreUC.Execute(r.Context(), idParam, req)
 	if err != nil {
 		response.Error(w, err)
 		return

@@ -294,6 +294,7 @@ func buildDependencies(
 	getSegmentUC := lightingUC.NewGetSegmentUseCase(segmentRepo, fixtureRepo, analysisRepo)
 	getStatsUC := lightingUC.NewGetStatsUseCase(segmentRepo)
 	simulateUC := lightingUC.NewSimulateScenarioUseCase(segmentRepo)
+	rescoreUC := lightingUC.NewRescoreSegmentUseCase(segmentRepo)
 	ingestSeedUC := lightingUC.NewIngestSeedUseCase(segmentRepo, fixtureRepo, analysisRepo)
 
 	// AI worker (optional). If AI_WORKER_URL is unset, AnalyzeLive falls back to
@@ -318,7 +319,7 @@ func buildDependencies(
 		}
 	}
 
-	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC, analyzeLiveUC)
+	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC, analyzeLiveUC, rescoreUC)
 
 	// --- Gateway pipeline with interceptors ---
 	// Create interceptor chain: schema validation, PII masking, request/response transformers
