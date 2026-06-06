@@ -136,4 +136,5 @@ export interface AnalyzeResult {
   lat?: number;
   lon?: number;
   address?: string;
+  source?: string;
 }

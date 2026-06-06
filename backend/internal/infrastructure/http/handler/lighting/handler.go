@@ -22,6 +22,7 @@ type Handler struct {
 	getSegmentUC   *usecase.GetSegmentUseCase
 	getStatsUC     *usecase.GetStatsUseCase
 	simulateUC     *usecase.SimulateScenarioUseCase
+	analyzeLiveUC  *usecase.AnalyzeLiveUseCase
 }
 
 // NewHandler creates a new Lighting handler.
@@ -30,12 +31,14 @@ func NewHandler(
 	getSegmentUC *usecase.GetSegmentUseCase,
 	getStatsUC *usecase.GetStatsUseCase,
 	simulateUC *usecase.SimulateScenarioUseCase,
+	analyzeLiveUC *usecase.AnalyzeLiveUseCase,
 ) *Handler {
 	return &Handler{
 		listSegmentsUC: listSegmentsUC,
 		getSegmentUC:   getSegmentUC,
 		getStatsUC:     getStatsUC,
 		simulateUC:     simulateUC,
+		analyzeLiveUC:  analyzeLiveUC,
 	}
 }
 
@@ -122,6 +125,23 @@ func (h *Handler) Simulate(w http.ResponseWriter, r *http.Request) {
 		req.ScenarioParams,
 		repository.SegmentFilter{District: req.District},
 	)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, result)
+}
+
+// Analyze runs on-demand CV analysis of a single point (Street View via the AI
+// worker, or a deterministic fallback). Faces/plates are anonymized upstream.
+func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
+	var req dto.AnalyzeRequest
+	if err := validator.DecodeAndValidate(r, &req); err != nil {
+		response.JSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	result, err := h.analyzeLiveUC.Execute(r.Context(), req)
 	if err != nil {
 		response.Error(w, err)
 		return

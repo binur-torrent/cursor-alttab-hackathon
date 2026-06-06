@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	// Infrastructure
+	"github.com/masterfabric-go/masterfabric/internal/infrastructure/aiworker"
 	infraAuth "github.com/masterfabric-go/masterfabric/internal/infrastructure/auth"
 	apimgmtHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/apimanagement"
 	auditHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/audit"
@@ -295,6 +296,15 @@ func buildDependencies(
 	simulateUC := lightingUC.NewSimulateScenarioUseCase(segmentRepo)
 	ingestSeedUC := lightingUC.NewIngestSeedUseCase(segmentRepo, fixtureRepo, analysisRepo)
 
+	// AI worker (optional). If AI_WORKER_URL is unset, AnalyzeLive falls back to
+	// a deterministic Go heuristic so the live demo always works.
+	var analyzer lightingUC.AnalyzerPort
+	if workerURL := os.Getenv("AI_WORKER_URL"); workerURL != "" {
+		analyzer = aiworker.NewClient(workerURL)
+		log.Info("ai worker configured", "url", workerURL)
+	}
+	analyzeLiveUC := lightingUC.NewAnalyzeLiveUseCase(analyzer, log)
+
 	// Auto-seed from the embedded, anonymized AI pipeline output if empty.
 	if envBool("LIGHTING_AUTOSEED", true) {
 		if count, err := segmentRepo.Count(context.Background()); err == nil && count == 0 {
@@ -308,7 +318,7 @@ func buildDependencies(
 		}
 	}
 
-	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC)
+	deps.LightingHandler = lightingHandler.NewHandler(listSegmentsUC, getSegmentUC, getStatsUC, simulateUC, analyzeLiveUC)
 
 	// --- Gateway pipeline with interceptors ---
 	// Create interceptor chain: schema validation, PII masking, request/response transformers

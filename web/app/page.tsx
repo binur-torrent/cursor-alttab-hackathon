@@ -5,10 +5,11 @@ import MapView from "@/components/MapView";
 import StatsBar from "@/components/StatsBar";
 import SegmentPanel from "@/components/SegmentPanel";
 import SimulationPanel from "@/components/SimulationPanel";
+import AnalyzePanel from "@/components/AnalyzePanel";
 import { api } from "@/lib/api";
 import type { CityStats, SegmentDetail, StreetSegment } from "@/lib/types";
 
-type Tab = "inspect" | "simulate";
+type Tab = "inspect" | "simulate" | "analyze";
 
 const RISK_FILTERS = [
   { value: "", label: "All segments" },
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [riskFilter, setRiskFilter] = useState("");
   const [tab, setTab] = useState<Tab>("inspect");
+  const [marker, setMarker] = useState<{ lat: number; lon: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,11 +98,12 @@ export default function Dashboard() {
             segments={segments}
             selectedId={selected?.external_id}
             onSelect={handleSelect}
+            marker={marker}
           />
         </div>
         <aside className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4">
           <div className="mb-4 flex rounded-lg border border-slate-800 p-0.5 text-sm">
-            {(["inspect", "simulate"] as Tab[]).map((t) => (
+            {(["inspect", "simulate", "analyze"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -112,10 +115,10 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          {tab === "inspect" ? (
-            <SegmentPanel detail={detail} loading={detailLoading} />
-          ) : (
-            <SimulationPanel districts={districts} />
+          {tab === "inspect" && <SegmentPanel detail={detail} loading={detailLoading} />}
+          {tab === "simulate" && <SimulationPanel districts={districts} />}
+          {tab === "analyze" && (
+            <AnalyzePanel onLocate={(lat, lon) => setMarker({ lat, lon })} />
           )}
         </aside>
       </div>
