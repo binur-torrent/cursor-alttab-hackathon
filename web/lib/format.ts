@@ -29,3 +29,18 @@ export function num(n: number, digits = 0): string {
 export function pct(n: number): string {
   return `${n > 0 ? "+" : ""}${num(n, 1)}%`;
 }
+
+// scoreColor maps a 0..100 "higher is better" score to a traffic-light color.
+export function scoreColor(score: number): string {
+  if (score >= 70) return "#22c55e"; // green
+  if (score >= 45) return "#eab308"; // amber
+  if (score >= 25) return "#f97316"; // orange
+  return "#ef4444"; // red
+}
+
+export function scoreLabel(score: number): string {
+  if (score >= 70) return "Good";
+  if (score >= 45) return "Fair";
+  if (score >= 25) return "Poor";
+  return "Critical";
+}

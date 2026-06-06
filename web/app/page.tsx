@@ -55,6 +55,17 @@ export default function Dashboard() {
     }
   }
 
+  // Called after a persisted intervention: recolor the map, refresh the panel,
+  // and pull updated network KPIs.
+  function handleApplied(updated: StreetSegment) {
+    setSegments((prev) =>
+      prev.map((s) => (s.external_id === updated.external_id ? { ...s, ...updated } : s)),
+    );
+    setSelected((prev) => (prev ? { ...prev, ...updated } : prev));
+    setDetail((prev) => (prev ? { ...prev, segment: { ...prev.segment, ...updated } } : prev));
+    api.stats().then(setStats).catch(() => {});
+  }
+
   const districts = (stats?.by_district ?? []).map((d) => d.district);
 
   return (
@@ -115,7 +126,9 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          {tab === "inspect" && <SegmentPanel detail={detail} loading={detailLoading} />}
+          {tab === "inspect" && (
+            <SegmentPanel detail={detail} loading={detailLoading} onApplied={handleApplied} />
+          )}
           {tab === "simulate" && <SimulationPanel districts={districts} />}
           {tab === "analyze" && (
             <AnalyzePanel onLocate={(lat, lon) => setMarker({ lat, lon })} />

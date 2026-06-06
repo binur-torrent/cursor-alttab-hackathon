@@ -44,9 +44,9 @@ export default function RiskMap({ segments, selectedId, onSelect, marker }: Risk
               <div className="text-xs">
                 <strong>{seg.name}</strong>
                 <br />
-                {seg.district} · risk {seg.risk_score} ({seg.risk_level})
+                {seg.district} · lighting score {Math.round(seg.overall_score)}/100 ({seg.risk_level})
                 <br />
-                {seg.street_light_count} lights · {seg.length_m} m
+                {seg.street_light_count} lamps · {seg.length_m} m
               </div>
             </Tooltip>
           </Polyline>

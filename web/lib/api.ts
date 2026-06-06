@@ -3,6 +3,8 @@ import type {
   CityStats,
   MapResponse,
   Paginated,
+  RescoreRequest,
+  RescoreResult,
   ScenarioParams,
   ScenarioResult,
   SegmentDetail,
@@ -45,6 +47,8 @@ export const api = {
     );
   },
   segment: (id: string) => getJSON<SegmentDetail>(`/api/v1/lighting/segments/${id}`),
+  rescore: (id: string, body: RescoreRequest) =>
+    postJSON<RescoreResult>(`/api/v1/lighting/segments/${id}/rescore`, body),
   simulate: (params: ScenarioParams) =>
     postJSON<ScenarioResult>("/api/v1/lighting/simulate", params),
   analyze: (body: {
