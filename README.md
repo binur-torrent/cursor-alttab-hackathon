@@ -1,5 +1,7 @@
 # LumiCity AI
 
+📄 **[Project overview (PDF)](Lumecity.pdf)** — hackathon submission deck
+
 **AI-powered urban lighting assessment & planning for municipalities.**
 
 LumiCity AI combines HuggingFace computer-vision models, geolocated street-level
