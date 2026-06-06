@@ -1,0 +1,25 @@
+---
+description: KVKK privacy constraints — non-negotiable for any imagery handling
+alwaysApply: true
+---
+
+# Privacy / KVKK (non-negotiable)
+
+LumiCity analyzes **public lighting infrastructure**, not people.
+
+## Always
+
+- Detect **urban assets only** (streetlights, poles, road geometry).
+- **Irreversibly blur** faces and license plates **before** detection, storage,
+  or display (see `ai/pipeline/anonymize.py`). Never store an un-blurred copy.
+- Persist **derived metadata only** (counts, density, risk). Carry
+  `anonymized`/`faces_blurred`/`plates_blurred` so it stays auditable.
+
+## Never
+
+- ❌ Face recognition, identity detection, person profiling/tracking.
+- ❌ License-plate recognition/reading; vehicle tracking.
+- ❌ Commit raw imagery, datasets, model weights, or `.env` secrets (see
+  `.gitignore`). No unencrypted raw data in cloud storage.
+
+If a change would touch raw imagery, ensure it flows through `anonymize_*` first.

@@ -1,0 +1,23 @@
+---
+description: Keep the lighting scoring model identical across Python and Go
+globs: ai/pipeline/scoring.py,backend/internal/domain/lighting/model/scoring.go
+alwaysApply: false
+---
+
+# Scoring model: one source of truth, two languages
+
+`ai/pipeline/scoring.py` (seed generation / live worker) and
+`backend/internal/domain/lighting/model/scoring.go` (backend live scoring +
+simulation) are **deterministic ports of each other**.
+
+## When you change one, change both
+
+- Keep `RECOMMENDED_DENSITY`, `ROAD_WEIGHT`, thresholds, and the risk formula
+  byte-for-byte equivalent.
+- Update the Go unit tests in `scoring_test.go` to lock the new behavior.
+- Mismatches cause precomputed seeds and live analysis to disagree — a demo bug.
+
+```go
+// Go and Python must produce the same risk_score for the same inputs.
+ScoreSegment(streetlights, lengthM, roadType, nightRatio)
+```

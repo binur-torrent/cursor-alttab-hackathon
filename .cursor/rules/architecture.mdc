@@ -1,0 +1,30 @@
+---
+description: Mandatory backend architecture (masterfabric-go) and how to add features
+alwaysApply: true
+---
+
+# Architecture: masterfabric-go is mandatory
+
+The backend **is** `masterfabric-go` (clean/hexagonal: Chi, pgx, Redis, goose).
+Do **not** build a custom backend or framework. All LumiCity features live in the
+`lighting` bounded context and must mirror the existing layering.
+
+## Add a feature by mirroring an existing slice (e.g. `tenant`)
+
+```
+internal/domain/lighting/        # entities + repository interfaces (NO deps)
+internal/application/lighting/   # use cases + DTOs (orchestration only)
+internal/infrastructure/postgres/lighting/  # pgx repository implementations
+internal/infrastructure/http/handler/lighting/  # Chi handlers
+internal/infrastructure/postgres/migrations/    # goose migrations
+```
+
+## Rules
+
+- Domain layer imports nothing from infrastructure/application.
+- Use cases depend on repository **interfaces**, never concrete pgx types.
+- Register routes in `internal/infrastructure/http/router/router.go`; wire
+  dependencies in `cmd/server/main.go`.
+- New tables: add a goose migration **and** keep `EnsureSchema` (startup DDL) in
+  sync so cloud deploys work without a manual migrate step.
+- Reuse `internal/shared` helpers (`response`, `pagination`, `validator`, `errors`).
